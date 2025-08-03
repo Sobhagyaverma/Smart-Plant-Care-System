@@ -3,7 +3,7 @@ import os
 
 # 1. Define constants
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 EPOCHS = 5 # Start with a small number to test
 
 # 2. Define paths

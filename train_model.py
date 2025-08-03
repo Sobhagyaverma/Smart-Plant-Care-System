@@ -74,6 +74,18 @@ model = tf.keras.Sequential([
   tf.keras.layers.Dense(num_classes, activation='softmax')
 ])
 
-# 8. Print the model summary
+# (Keep all the code from before)
+
+# ... previous code ends here
 print("\n✅ Model architecture built.")
 model.summary()
+
+# 9. Compile the model
+print("\nCompiling model...")
+model.compile(
+  optimizer='adam',
+  loss='categorical_crossentropy',
+  metrics=['accuracy']
+)
+
+print("✅ Model compiled successfully.")

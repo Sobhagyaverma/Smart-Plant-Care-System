@@ -4,6 +4,7 @@ import os
 # 1. Define constants
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
+EPOCHS = 5 # Start with a small number to test
 
 # 2. Define paths
 base_dir = os.path.join('New Plant Diseases Dataset(Augmented)', 'New Plant Diseases Dataset(Augmented)')
@@ -28,7 +29,7 @@ validation_dataset = tf.keras.utils.image_dataset_from_directory(
     batch_size=BATCH_SIZE
 )
 
-# 5. GET CLASS NAMES **BEFORE** OPTIMIZING
+# 5. Get class names before optimizing
 class_names = train_dataset.class_names
 print(f"\nFound {len(class_names)} classes.")
 print(class_names)
@@ -37,55 +38,48 @@ print(class_names)
 AUTOTUNE = tf.data.AUTOTUNE
 train_dataset = train_dataset.cache().prefetch(buffer_size=AUTOTUNE)
 validation_dataset = validation_dataset.cache().prefetch(buffer_size=AUTOTUNE)
-
-# (Keep all the code from before)
-
-# ... previous code ends here
 print("\n✅ Data loading and preparation complete.")
-
 
 # 7. Build the model architecture
 print("\nBuilding model architecture...")
 num_classes = len(class_names)
 
 model = tf.keras.Sequential([
-  # Input layer: Rescale pixel values from [0, 255] to [0, 1]
   tf.keras.layers.Rescaling(1./255, input_shape=(IMG_SIZE[0], IMG_SIZE[1], 3)),
   
-  # First Convolutional Block
   tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
   tf.keras.layers.MaxPooling2D(2, 2),
 
-  # Second Convolutional Block
   tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
   tf.keras.layers.MaxPooling2D(2, 2),
 
-  # Third Convolutional Block
   tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
   tf.keras.layers.MaxPooling2D(2, 2),
 
-  # Flatten the results to feed into a dense layer
   tf.keras.layers.Flatten(),
-  
-  # Dense layer for classification
   tf.keras.layers.Dense(512, activation='relu'),
-  
-  # Output layer: Must have the same number of units as classes
   tf.keras.layers.Dense(num_classes, activation='softmax')
 ])
 
-# (Keep all the code from before)
-
-# ... previous code ends here
-print("\n✅ Model architecture built.")
-model.summary()
-
-# 9. Compile the model
+# 8. Compile the model
 print("\nCompiling model...")
 model.compile(
   optimizer='adam',
   loss='categorical_crossentropy',
   metrics=['accuracy']
 )
-
 print("✅ Model compiled successfully.")
+model.summary()
+
+# 9. Train the model
+print("\nStarting model training...")
+history = model.fit(
+  train_dataset,
+  validation_data=validation_dataset,
+  epochs=EPOCHS
+)
+
+# 10. Save the trained model
+print("\n✅ Training complete.")
+model.save('plant_disease_model.h5')
+print("✅ Model saved to plant_disease_model.h5")

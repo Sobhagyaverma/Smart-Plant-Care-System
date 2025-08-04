@@ -6,6 +6,36 @@ from PIL import Image
 # --- App Configuration ---
 st.set_page_config(page_title="Plant Disease Detection", layout="wide")
 
+# --- Treatment Database ---
+# A simple dictionary to store treatment suggestions for each disease
+treatment_database = {
+    "Apple___Apple_scab": {
+        "suggestion": "Remove and destroy infected leaves and fruit. Apply a fungicide containing myclobutanil or captan.",
+        "prevention": "Ensure good air circulation by pruning trees. Water at the base to avoid wet leaves. Rake up and dispose of fallen leaves in autumn."
+    },
+    "Apple___Black_rot": {
+        "suggestion": "Prune out dead or cankered branches. Remove and dispose of mummified fruit. Apply a fungicide during the growing season.",
+        "prevention": "Maintain tree health with proper watering and fertilization. Avoid wounding the tree."
+    },
+    "Tomato___Bacterial_spot": {
+        "suggestion": "Apply copper-based bactericides. Remove heavily infected plants to prevent spread.",
+        "prevention": "Use disease-free seeds and transplants. Rotate crops, avoiding planting tomatoes or peppers in the same spot for at least a year. Avoid overhead watering."
+    },
+    "Tomato___Late_blight": {
+        "suggestion": "Immediately remove and destroy infected plants. Apply fungicides containing chlorothalonil, mancozeb, or copper.",
+        "prevention": "Ensure good airflow. Water early in the day at the soil level. Monitor weather forecasts for conditions favorable to blight."
+    },
+    "Corn_(maize)___healthy": {
+        "suggestion": "Your plant appears to be healthy.",
+        "prevention": "Continue with good watering practices, ensure adequate sunlight, and monitor regularly for any signs of pests or disease."
+    },
+    "default": {
+        "suggestion": "No specific treatment suggestion available for this condition.",
+        "prevention": "General best practices include ensuring proper watering, adequate sunlight, good soil drainage, and regular monitoring."
+    }
+}
+
+
 # --- Load the Model and Class Names ---
 @st.cache_resource
 def load_model_and_classes():
@@ -23,42 +53,40 @@ def predict(image):
     """
     Takes an image, preprocesses it, and returns the predicted class and confidence.
     """
-    # Preprocess the image
     img_array = np.array(image.resize((224, 224)))
-    img_array = np.expand_dims(img_array, axis=0) # Create a batch
-
-    # Make a prediction
+    img_array = np.expand_dims(img_array, axis=0)
     predictions = model.predict(img_array)
     predicted_class_index = np.argmax(predictions[0])
     predicted_class_name = class_names[predicted_class_index]
     confidence = np.max(predictions[0]) * 100
-    
     return predicted_class_name, confidence
 
 # --- App UI ---
 st.title("🌿 Plant Disease Detection System")
 st.write("Choose an option below to check for plant diseases.")
 
-# --- Sidebar for Mode Selection ---
 st.sidebar.title("Options")
 app_mode = st.sidebar.selectbox("Choose the app mode",
     ["About", "Upload Image", "Live Camera"])
 
-# --- About Page ---
 if app_mode == "About":
     st.sidebar.success('To begin, select an option from the dropdown menu.')
     st.markdown("This application helps in identifying diseases in plants using a deep learning model.")
     st.markdown("You can either upload an image of a plant leaf or use your device's camera for a live prediction.")
 
-# --- Upload Image Mode ---
-elif app_mode == "Upload Image":
-    st.sidebar.success('You have selected the Upload Image mode.')
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+elif app_mode == "Upload Image" or app_mode == "Live Camera":
+    if app_mode == "Upload Image":
+        st.sidebar.success('You have selected the Upload Image mode.')
+        uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+        image_source = uploaded_file
+    else:
+        st.sidebar.info('You have selected the Live Camera mode. Please grant camera access when prompted.')
+        img_file_buffer = st.camera_input("Take a picture of the plant leaf")
+        image_source = img_file_buffer
 
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.image(image, caption='Uploaded Image.', use_column_width=True)
-        st.write("")
+    if image_source is not None:
+        image = Image.open(image_source)
+        st.image(image, caption='Input Image.', use_column_width=True)
         
         with st.spinner('Classifying...'):
             predicted_class, confidence = predict(image)
@@ -66,18 +94,13 @@ elif app_mode == "Upload Image":
         st.success(f"Prediction: {predicted_class}")
         st.info(f"Confidence: {confidence:.2f}%")
 
-# --- Live Camera Mode ---
-elif app_mode == "Live Camera":
-    st.sidebar.info('You have selected the Live Camera mode. Please grant camera access when prompted.')
-    img_file_buffer = st.camera_input("Take a picture of the plant leaf")
-
-    if img_file_buffer is not None:
-        image = Image.open(img_file_buffer)
-        st.image(image, caption='Captured Image.', use_column_width=True)
+        # Display treatment suggestions
+        st.markdown("---")
+        st.header("Recommended Actions")
+        treatment = treatment_database.get(predicted_class, treatment_database["default"])
         
-        with st.spinner('Classifying...'):
-            predicted_class, confidence = predict(image)
-
-        st.success(f"Prediction: {predicted_class}")
-        st.info(f"Confidence: {confidence:.2f}%")
-
+        with st.expander("🔬 Suggested Treatment"):
+            st.write(treatment["suggestion"])
+        
+        with st.expander("🛡️ Preventive Measures"):
+            st.write(treatment["prevention"])

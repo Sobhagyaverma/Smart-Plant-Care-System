@@ -253,7 +253,7 @@ def predict_image(image):
 # --- UI Starts Here ---
 st.markdown("""
     <div style="text-align:center; padding-top: 20px;">
-        <h1 style="color:#2e7d32;">🌱 Agro Guard: Smart Crop Care System</h1>
+        <h1 style="color:#2e7d32;">🌱 Agro Guard: Smart Cropp Care System</h1>
         <h4 style="color:#555;">An AI-powered toolkit for modern farming and gardening</h4>
     </div>
     <hr>

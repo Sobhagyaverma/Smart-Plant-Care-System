@@ -2,4 +2,6 @@ streamlit
 tensorflow-cpu
 numpy
 Pillow
-requests
+plotly-express
+firebase-admin
+gdown

@@ -1,0 +1,136 @@
+/*
+  Agro Guard IoT Firmware v2.0
+  - Connects to Wi-Fi
+  - Reads REAL Soil Moisture
+  - Sends REAL Moisture + SIMULATED Temp/Humidity to Firebase
+  - LISTENS for manual pump command from web app
+  - ACTIVATES pump automatically if soil is dry
+*/
+
+// --- 1. LIBRARIES ---
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include <ArduinoJson.h>
+
+// --- 2. WI-FI & FIREBASE CREDENTIALS (FILLED IN) ---
+#define WIFI_SSID "sobhagya"
+#define WIFI_PASSWORD "09.09.09.09"
+
+#define API_KEY "AIzaSyAQfHDnv0v0mTL7QCj39XLHSMOgP_fChno"
+#define DATABASE_URL "agro-guard-iot-system-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+// --- 3. HARDWARE SETTINGS ---
+const int soilSensorPin = 34; // D34
+const int relayPin = 27;      // D27
+
+// Calibration
+const int DRY_VALUE = 4095; 
+const int WET_VALUE = 1500; // Calibrated from your test (value in water)
+#define WATERING_THRESHOLD_PERCENT 50 // Waters if moisture is BELOW this value
+
+// --- 4. GLOBALS ---
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+unsigned long sendDataPrevMillis = 0;
+bool signupOK = false;
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Agro Guard IoT Device Booting...");
+  
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW); // Start with pump OFF
+
+  randomSeed(analogRead(0)); // Initialize random number generator
+
+  // Connect to Wi-Fi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println("\nWi-Fi Connected!");
+
+  // Connect to Firebase
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  
+  if (Firebase.signUp(&config, &auth, "", "")) {
+    Serial.println("Firebase Login Success");
+    signupOK = true;
+  } else {
+    Serial.printf("Firebase Login Failed: %s\n", config.signer.signupError.message.c_str());
+  }
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
+
+void loop() {
+  if (Firebase.ready() && signupOK) {
+    
+    // --- Block A: Check sensors, Auto-Water, & Send Data (Every 10 Seconds) ---
+    if (millis() - sendDataPrevMillis > 10000 || sendDataPrevMillis == 0) {
+      sendDataPrevMillis = millis();
+
+      // 1. Read REAL Sensor
+      int rawValue = analogRead(soilSensorPin);
+      int moisturePercent = map(rawValue, DRY_VALUE, WET_VALUE, 0, 100);
+      moisturePercent = constrain(moisturePercent, 0, 100);
+      
+      // 2. Generate SIMULATED Sensors
+      float sim_temp = random(220, 280) / 10.0; // 22.0 - 28.0 °C
+      float sim_hum = random(50, 65); // 50% - 65%
+
+      // 3. Print to Serial
+      Serial.print("Moisture: "); Serial.print(moisturePercent); Serial.print("%");
+      Serial.print(" | Temp (sim): "); Serial.print(sim_temp);
+      Serial.print("C | Hum (sim): "); Serial.print(sim_hum); Serial.println("%");
+
+      // 4. Upload all data to Firebase as JSON
+      FirebaseJson json;
+      json.set("moisture", moisturePercent);
+      json.set("temperature", sim_temp);
+      json.set("humidity", sim_hum);
+
+      if (Firebase.RTDB.setJSON(&fbdo, "/iot_dashboard/live_data", &json)) {
+        Serial.println(" -> Sent to Cloud");
+      } else {
+        Serial.println(" -> Upload Failed");
+        Serial.println(fbdo.errorReason());
+      }
+
+      // 5. Check for Automatic Watering
+      if (moisturePercent < WATERING_THRESHOLD_PERCENT) {
+        Serial.println("Soil is dry! Activating automatic watering.");
+        digitalWrite(relayPin, HIGH); // Pump ON
+        delay(5000);                  // Water for 5 seconds
+        digitalWrite(relayPin, LOW);  // Pump OFF
+        Serial.println("Automatic watering complete.");
+        
+        // Log this event to Firebase
+        Firebase.RTDB.setString(&fbdo, "/iot_dashboard/logs/last_event", "System automatically watered plant.");
+      }
+    }
+
+    // --- Block B: Listen for Manual Command (Runs every loop) ---
+    if (Firebase.RTDB.getBool(&fbdo, "/iot_dashboard/controls/pump")) {
+      if (fbdo.boolData() == true) {
+        Serial.println("⚠️ CLOUD COMMAND: Turning Pump ON!");
+        
+        digitalWrite(relayPin, HIGH); // Pump ON
+        delay(5000);                  // Run for 5 seconds
+        digitalWrite(relayPin, LOW);  // Pump OFF
+        
+        // Reset the switch in Firebase back to false
+        Firebase.RTDB.setBool(&fbdo, "/iot_dashboard/controls/pump", false);
+        Serial.println("Pump finished. Command reset.");
+        
+        // Log this event to Firebase
+        Firebase.RTDB.setString(&fbdo, "/iot_dashboard/logs/last_event", "Manual watering activated from web.");
+      }
+    }
+  }
+}

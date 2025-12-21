@@ -606,9 +606,9 @@ if st.session_state.active_tab == "📊 About & Dashboard":
     with col1:
         st.metric("🌿 Plant Classes", len(CLASS_NAMES), delta="38 Total")
     with col2:
-        st.metric("✅ AI Accuracy", "92.98%", delta="High Precision")
+        st.metric("✅ Hybrid AI", "95.85%", delta="CNN+SVM")
     with col3:
-        st.metric("🚀 Version", "v3.0", delta="Latest")
+        st.metric("🚀 Model", "MobileNetV2", delta="+ Linear SVM")
     with col4:
         st.metric("⚡ Status", "Active", delta="Online")
     
@@ -624,7 +624,7 @@ if st.session_state.active_tab == "📊 About & Dashboard":
         st.markdown("### 🌟 Key Features")
         
         features = [
-            {"icon": "🤖", "title": "AI-Powered Diagnosis", "desc": "Identify 38 plant diseases instantly with 92.98% accuracy"},
+            {"icon": "🤖", "title": "Hybrid AI Diagnosis", "desc": "CNN feature extraction + SVM classification with 95.85% accuracy"},
             {"icon": "📸", "title": "Dual Input Modes", "desc": "Upload images or use live camera for real-time detection"},
             {"icon": "💊", "title": "Treatment Recommendations", "desc": "Get actionable treatment and prevention strategies"},
             {"icon": "📊", "title": "IoT Dashboard", "desc": "Monitor soil moisture, temperature, and humidity in real-time"},
@@ -669,9 +669,9 @@ if st.session_state.active_tab == "📊 About & Dashboard":
         
         fig = go.Figure(go.Indicator(
             mode = "gauge+number+delta",
-            value = 92.98,
+            value = 95.85,
             domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Model Performance", 'font': {'size': 20, 'color': '#e2e8f0'}},
+            title = {'text': "Hybrid CNN+SVM Performance", 'font': {'size': 18, 'color': '#e2e8f0'}},
             delta = {'reference': 90, 'increasing': {'color': "#3b82f6"}},
             gauge = {
                 'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "#3b82f6"},

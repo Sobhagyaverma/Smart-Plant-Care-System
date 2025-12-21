@@ -494,13 +494,24 @@ def init_firebase():
         firebase_admin.get_app()
     except ValueError:
         try:
-            cred = credentials.Certificate("firebase-key.json")
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://agro-guard-iot-system-default-rtdb.asia-southeast1.firebasedatabase.app' 
-            })
+            # Try loading from Streamlit secrets first (for Cloud Deployment)
+            if "firebase" in st.secrets:
+                key_dict = dict(st.secrets["firebase"])
+                cred = credentials.Certificate(key_dict)
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': 'https://agro-guard-iot-system-default-rtdb.asia-southeast1.firebasedatabase.app' 
+                })
+            # Fallback to local file
+            elif os.path.exists("firebase-key.json"):
+                cred = credentials.Certificate("firebase-key.json")
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': 'https://agro-guard-iot-system-default-rtdb.asia-southeast1.firebasedatabase.app' 
+                })
+            else:
+                st.warning("⚠️ Firebase credentials not found. IoT features disabled.")
+                return False
         except Exception as e:
-            st.error(f"Error initializing Firebase: {e}")
-            st.error("Please make sure 'firebase-key.json' is in the correct folder and your Database URL is correct.")
+            st.warning(f"Error initializing Firebase: {e}")
             return False
     return True
 

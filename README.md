@@ -9,12 +9,12 @@ A Convolutional Neural Network (**MobileNetV2**) is used to extract high-level f
 ### Pipeline Flow
 ```mermaid
 graph TD
-    A[Input Image] --> B[Image Preprocessing<br/>(224x224, Normalization)]
-    B --> C[MobileNetV2<br/>(Feature Extraction)]
-    C --> D[Feature Vector<br/>(High-Dimensional)]
-    D --> E[StandardScaler<br/>(Feature Normalization)]
-    E --> F[Linear SVM Classifier]
-    F --> G[Predicted Disease Class]
+    A["Input Image"] --> B["Image Preprocessing<br/>(224x224, Normalization)"]
+    B --> C["MobileNetV2<br/>(Feature Extraction)"]
+    C --> D["Feature Vector<br/>(High-Dimensional)"]
+    D --> E["StandardScaler<br/>(Feature Normalization)"]
+    E --> F["Linear SVM Classifier"]
+    F --> G["Predicted Disease Class"]
 ```
 
 ## 📊 Results

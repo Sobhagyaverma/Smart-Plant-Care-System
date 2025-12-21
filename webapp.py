@@ -9,6 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import firebase_admin
 from firebase_admin import credentials, db
+import joblib
 
 
 # --- App Configuration ---
@@ -448,37 +449,44 @@ treatment_database = {
     }
 }
 
-# --- Class names (must match your model) ---
-CLASS_NAMES = [
-    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-    'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 'Cherry_(including_sour)___healthy',
-    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 'Corn_(maize)___Common_rust_',
-    'Corn_(maize)___Northern_Leaf_Blight', 'Corn_(maize)___healthy', 'Grape___Black_rot',
-    'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 'Grape___healthy',
-    'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 'Potato___Early_blight',
-    'Potato___Late_blight', 'Potato___healthy', 'Raspberry___healthy', 'Soybean___healthy',
-    'Squash___Powdery_mildew', 'Strawberry___Leaf_scorch', 'Strawberry___healthy',
-    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold',
-    'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites Two-spotted_spider_mite', 'Tomato___Target_Spot',
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus', 'Tomato___healthy'
-]
+# --- Class names (from labels.txt) ---
+try:
+    with open("labels.txt", "r") as f:
+        CLASS_NAMES = [line.strip() for line in f.readlines()]
+except FileNotFoundError:
+    st.error("labels.txt not found. Please ensure it exists.")
+    CLASS_NAMES = []
+except Exception as e:
+    st.error(f"Error reading labels.txt: {e}")
+    CLASS_NAMES = []
 
-# --- Model loader: tries .h5 then SavedModel directory ---
+# --- Model loader: Hybrid CNN (Feature Extractor) + SVM ---
 @st.cache_resource
-def load_model():
-    candidates = ["plant_disease_model.h5", "plant_disease_model_savedmodel"]
-    for c in candidates:
-        if os.path.exists(c):
-            try:
-                model = tf.keras.models.load_model(c)
-                return model
-            except Exception as e:
-                print(f"Failed to load model from {c}: {e}")
-                continue
-    return None
+def load_model_pipeline():
+    try:
+        # Load CNN (MobileNetV2)
+        base_model_path = "cnn_mobilenetv2.keras"
+        if not os.path.exists(base_model_path):
+            st.error(f"CNN model not found at {base_model_path}")
+            return None, None, None
+        
+        full_cnn = tf.keras.models.load_model(base_model_path)
+        
+        # User requested: cnn.layers[-3].output
+        feature_extractor = tf.keras.Model(inputs=full_cnn.input, outputs=full_cnn.layers[-3].output)
+        
+        # Load Scaler
+        scaler = joblib.load("scaler.pkl")
+        
+        # Load SVM
+        svm_model = joblib.load("svm_linear.pkl")
+        
+        return feature_extractor, scaler, svm_model
+    except Exception as e:
+        st.error(f"Error loading models: {e}")
+        return None, None, None
 
-model = load_model()
+feature_extractor, scaler, svm_model = load_model_pipeline()
 
 @st.cache_resource
 def init_firebase():
@@ -506,20 +514,53 @@ if "logs" not in st.session_state:
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "📊 About & Dashboard"
 
-# --- Utility: predict safely ---
+# --- Utility: predict safely with Hybrid Pipeline ---
 def predict_image(image):
-    if model is None: return None, None, None
+    if feature_extractor is None or scaler is None or svm_model is None:
+        return None, None, None
     try:
+        # 1. Preprocess
         image = image.convert("RGB")
         img_resized = image.resize((224, 224))
         img_array = np.array(img_resized)
-        img_array = np.expand_dims(img_array, axis=0)
-        preds = model.predict(img_array)
-        idx = int(np.argmax(preds[0]))
-        cls = CLASS_NAMES[idx]
-        conf = float(np.max(preds[0]) * 100)
-        top_idx = np.argsort(preds[0])[-5:][::-1]
-        top5 = [(CLASS_NAMES[i], float(preds[0][i] * 100)) for i in top_idx]
+        img_array = np.expand_dims(img_array, axis=0) # (1, 224, 224, 3)
+        # Use MobileNetV2 preprocessing
+        img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
+        
+        # 2. Extract Features
+        features = feature_extractor.predict(img_array, verbose=0)
+        
+        # 3. Scale Features
+        features_scaled = scaler.transform(features)
+        
+        # 4. Predict with SVM
+        # Since LinearSVC doesn't have predict_proba, use decision_function + softmax approximation
+        decision_scores = svm_model.decision_function(features_scaled)[0]
+        
+        # Softmax to get probabilities
+        exp_scores = np.exp(decision_scores - np.max(decision_scores))
+        if exp_scores.sum() == 0:
+             probs = exp_scores 
+        else:
+             probs = exp_scores / exp_scores.sum()
+        
+        # Get Top 1
+        idx = int(np.argmax(probs))
+         # Ensure idx is within bounds of CLASS_NAMES
+        if idx < len(CLASS_NAMES):
+            cls = CLASS_NAMES[idx]
+        else:
+            cls = "Unknown"
+            
+        conf = float(probs[idx] * 100)
+        
+        # Get Top 5
+        top_idx = np.argsort(probs)[-5:][::-1]
+        top5 = []
+        for i in top_idx:
+            if i < len(CLASS_NAMES):
+                 top5.append((CLASS_NAMES[i], float(probs[i] * 100)))
+                 
         return cls, conf, top5
     except Exception as e:
         st.error(f"Prediction error: {e}")
@@ -772,8 +813,8 @@ elif st.session_state.active_tab == "🔍 Disease Detection":
             st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if model is None:
-            st.warning("⚠️ Model not loaded. Cannot perform prediction.")
+        if feature_extractor is None:
+            st.warning("⚠️ Models not loaded. Cannot perform prediction.")
         else:
             with st.spinner("🔄 Analyzing image with AI..."):
                 time.sleep(0.5)  # Brief pause for better UX

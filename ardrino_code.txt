@@ -5,6 +5,7 @@
   - Sends REAL Moisture + SIMULATED Temp/Humidity to Firebase
   - LISTENS for manual pump command from web app
   - ACTIVATES pump automatically if soil is dry
+  
 */
 
 // --- 1. LIBRARIES ---

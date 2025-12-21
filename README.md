@@ -245,6 +245,22 @@ graph LR
 </tr>
 </table>
 
+### Confusion Matrix
+
+Detailed per-class performance visualization showing the model's prediction accuracy across all 38 disease classes:
+
+<div align="center">
+<img src="confusion_matrix.png" alt="Confusion Matrix - CNN + Linear SVM" width="90%"/>
+<br/>
+<b>Confusion Matrix: Hybrid CNN + SVM Model Performance</b>
+</div>
+
+**Key Observations:**
+- Strong diagonal values indicate high accuracy for most classes
+- Minimal confusion between different disease types
+- Excellent class separation demonstrating robust feature learning
+- Few misclassifications show model reliability
+
 ### Key Achievements
 
 ✅ **No Data Leakage**: Strict train/validation separation  
